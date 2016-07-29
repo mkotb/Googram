@@ -23,8 +23,10 @@ import org.json.JSONObject;
 import pro.zackpollard.telegrambot.api.TelegramBot;
 import pro.zackpollard.telegrambot.api.chat.inline.InlineQuery;
 import pro.zackpollard.telegrambot.api.chat.inline.send.InlineQueryResponse;
+import pro.zackpollard.telegrambot.api.chat.inline.send.content.InputTextMessageContent;
 import pro.zackpollard.telegrambot.api.chat.inline.send.results.InlineQueryResult;
 import pro.zackpollard.telegrambot.api.chat.inline.send.results.InlineQueryResultArticle;
+import pro.zackpollard.telegrambot.api.chat.message.send.ParseMode;
 import pro.zackpollard.telegrambot.api.event.Listener;
 import pro.zackpollard.telegrambot.api.event.chat.inline.InlineQueryReceivedEvent;
 
@@ -112,6 +114,10 @@ public class GoogramMain implements Listener {
                         .description("Please contact @MazenK for help")
                         .thumbUrl(errorImageUrl)
                         .thumbWidth(200).thumbHeight(200)
+                        .inputMessageContent(InputTextMessageContent.builder()
+                                .messageText("Google Search for " + query.getQuery() + " failed, contact @MazenK")
+                                .parseMode(ParseMode.NONE)
+                                .build())
                         .build())
                 .is_personal(true)
                 .build());
