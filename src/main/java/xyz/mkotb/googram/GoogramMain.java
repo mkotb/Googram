@@ -61,9 +61,10 @@ public class GoogramMain implements Listener {
         } catch (MalformedURLException no) {
         }
 
-        this.bot = TelegramBot.login(apiKey);
+        bot = TelegramBot.login(apiKey);
         bot.getEventsManager().register(this);
         bot.startUpdates(false);
+        System.out.println("Logged in.");
     }
 
     public static void main(String[] args) {
