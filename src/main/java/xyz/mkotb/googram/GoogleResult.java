@@ -62,7 +62,7 @@ public class GoogleResult {
         }
 
         builder.inputMessageContent(InputTextMessageContent.builder()
-                .messageText("[" + title + "](" + link + ") from Google; sent by @GoogramBot: made by @MazenK")
+                .messageText("[" + title + "](" + link + ")")
                 .parseMode(ParseMode.MARKDOWN)
                 .build());
         return builder.build();
