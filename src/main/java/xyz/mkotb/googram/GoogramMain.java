@@ -70,7 +70,7 @@ public class GoogramMain implements Listener {
     }
 
     public static void main(String[] args) {
-        new GoogramMain(args[0]);
+        new GoogramMain(System.getenv("TELEGRAM_KEY"));
     }
 
     public List<GoogleResult> search(String query) throws UnirestException {
