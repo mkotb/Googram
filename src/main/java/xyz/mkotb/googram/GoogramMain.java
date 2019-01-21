@@ -216,7 +216,7 @@ public class GoogramMain {
             logQuery(new QueryLog(query, null));
 
             AnswerInlineQuery.AnswerInlineQueryBuilder responseBuilder =
-                    AnswerInlineQuery.builder().queryId(query.getId()).isPersonal(true);
+                    AnswerInlineQuery.builder().queryId(query.getId()).cacheTime(6000);
             List<InlineResult> queryResults = new ArrayList<>();
             int id = 0;
 
