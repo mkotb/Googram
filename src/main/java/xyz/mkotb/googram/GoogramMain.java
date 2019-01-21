@@ -28,10 +28,16 @@ import com.jtelegram.api.requests.message.framework.ParseMode;
 import com.jtelegram.api.update.PollingUpdateProvider;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -46,9 +52,10 @@ public class GoogramMain {
     private final Gson gson = new Gson();
     private List<String> keys;
     private TelegramBot bot;
+    private TransportClient elasticClient;
     private AtomicInteger keyIndex = new AtomicInteger(-1);
 
-    public GoogramMain(String apiKey) {
+    public GoogramMain(String apiKey) throws Exception {
         try {
             keys = Files.readAllLines(Paths.get("gm_keys"));
         } catch (IOException ex) {
@@ -56,6 +63,9 @@ public class GoogramMain {
             System.out.println("Could not read keys!! Shutting down...");
             System.exit(0);
         }
+
+        elasticClient = new PreBuiltTransportClient(Settings.EMPTY)
+                .addTransportAddress(new TransportAddress(InetAddress.getByName("elasticsearch"), 9300));
 
         TelegramBotRegistry.builder()
                 .updateProvider(new PollingUpdateProvider())
@@ -76,7 +86,7 @@ public class GoogramMain {
                 });
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         new GoogramMain(System.getenv("TELEGRAM_KEY"));
     }
 
@@ -164,6 +174,14 @@ public class GoogramMain {
         );
     }
 
+    private void logQuery(QueryLog log) {
+        service.execute(() -> {
+            elasticClient.prepareIndex("googram-queries", "_doc")
+                    .setSource(gson.toJson(log), XContentType.JSON)
+                    .get();
+        });
+    }
+
     public void onInlineQuery(InlineQueryEvent event) {
         service.execute(() -> {
             InlineQuery query = event.getQuery();
@@ -179,6 +197,9 @@ public class GoogramMain {
                 sendError(query);
                 return;
             }
+
+            // log query metadata in elasticsearch
+            logQuery(new QueryLog(query));
 
             AnswerInlineQuery.AnswerInlineQueryBuilder responseBuilder =
                     AnswerInlineQuery.builder().queryId(query.getId()).isPersonal(true);
