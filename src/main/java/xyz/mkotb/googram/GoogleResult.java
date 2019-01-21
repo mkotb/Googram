@@ -15,12 +15,10 @@
  */
 package xyz.mkotb.googram;
 
-import pro.zackpollard.telegrambot.api.chat.inline.send.content.InputTextMessageContent;
-import pro.zackpollard.telegrambot.api.chat.inline.send.results.InlineQueryResultArticle;
-import pro.zackpollard.telegrambot.api.chat.message.send.ParseMode;
+import com.jtelegram.api.inline.input.InputTextMessageContent;
+import com.jtelegram.api.inline.result.InlineResultArticle;
+import com.jtelegram.api.requests.message.framework.ParseMode;
 
-import java.net.MalformedURLException;
-import java.net.URL;
 
 public class GoogleResult {
     private String title;
@@ -44,19 +42,19 @@ public class GoogleResult {
         return image;
     }
 
-    public InlineQueryResultArticle toArticle(int id) throws MalformedURLException {
-        InlineQueryResultArticle.InlineQueryResultArticleBuilder builder =
-                InlineQueryResultArticle.builder()
+    public InlineResultArticle toArticle(int id) {
+        InlineResultArticle.InlineResultArticleBuilder builder =
+                InlineResultArticle.builder()
                 .id(String.valueOf(id))
                 .title(title)
-                .url(new URL(link));
+                .url(link);
 
         if (snippet != null) {
             builder.description(snippet);
         }
 
         if (image != null) {
-            builder.thumbUrl(new URL(image.link()))
+            builder.thumbUrl(image.link())
                     .thumbHeight(image.height())
                     .thumbWidth(image.width());
         }
@@ -64,7 +62,9 @@ public class GoogleResult {
         builder.inputMessageContent(InputTextMessageContent.builder()
                 .messageText("[" + title + "](" + link + ")")
                 .parseMode(ParseMode.MARKDOWN)
-                .build());
+                .build()
+        );
+
         return builder.build();
     }
 }

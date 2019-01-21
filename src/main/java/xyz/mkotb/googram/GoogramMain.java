@@ -16,35 +16,34 @@
 package xyz.mkotb.googram;
 
 import com.google.gson.Gson;
+import com.jtelegram.api.TelegramBot;
+import com.jtelegram.api.TelegramBotRegistry;
+import com.jtelegram.api.events.inline.InlineQueryEvent;
+import com.jtelegram.api.inline.InlineQuery;
+import com.jtelegram.api.inline.input.InputTextMessageContent;
+import com.jtelegram.api.inline.result.InlineResultArticle;
+import com.jtelegram.api.inline.result.framework.InlineResult;
+import com.jtelegram.api.requests.inline.AnswerInlineQuery;
+import com.jtelegram.api.requests.message.framework.ParseMode;
+import com.jtelegram.api.update.PollingUpdateProvider;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import pro.zackpollard.telegrambot.api.TelegramBot;
-import pro.zackpollard.telegrambot.api.chat.inline.InlineQuery;
-import pro.zackpollard.telegrambot.api.chat.inline.send.InlineQueryResponse;
-import pro.zackpollard.telegrambot.api.chat.inline.send.content.InputTextMessageContent;
-import pro.zackpollard.telegrambot.api.chat.inline.send.results.InlineQueryResult;
-import pro.zackpollard.telegrambot.api.chat.inline.send.results.InlineQueryResultArticle;
-import pro.zackpollard.telegrambot.api.chat.message.send.ParseMode;
-import pro.zackpollard.telegrambot.api.event.Listener;
-import pro.zackpollard.telegrambot.api.event.chat.inline.InlineQueryReceivedEvent;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class GoogramMain implements Listener {
+public class GoogramMain {
     private final ExecutorService service = Executors.newWorkStealingPool(3);
     private final Gson gson = new Gson();
-    private URL errorImageUrl;
     private List<String> keys;
     private TelegramBot bot;
     private AtomicInteger keyIndex = new AtomicInteger(-1);
@@ -58,15 +57,21 @@ public class GoogramMain implements Listener {
             System.exit(0);
         }
 
-        try {
-            errorImageUrl = new URL("https://i.imgur.com/4QLcKXj.jpg");
-        } catch (MalformedURLException no) {
-        }
+        TelegramBotRegistry.builder()
+                .updateProvider(new PollingUpdateProvider())
+                .build()
+                .registerBot(apiKey, (bot, error) -> {
+                    if (error != null) {
+                        System.out.println("Could not log into Telegram, printing error");
+                        error.printStackTrace();
 
-        bot = TelegramBot.login(apiKey);
-        bot.getEventsManager().register(this);
-        bot.startUpdates(false);
-        System.out.println("Logged in.");
+                        System.exit(-1);
+                        return;
+                    }
+
+                    this.bot = bot;
+                    bot.getEventRegistry().registerEvent(InlineQueryEvent.class, this::onInlineQuery);
+                });
     }
 
     public static void main(String[] args) {
@@ -107,24 +112,27 @@ public class GoogramMain implements Listener {
     }
 
     private void sendError(InlineQuery query) {
-        query.answer(bot, InlineQueryResponse.builder()
-                .results(InlineQueryResultArticle.builder()
-                        .id("1")
-                        .title("Search failed!")
-                        .description("Please contact @MazenK for help")
-                        .thumbUrl(errorImageUrl)
-                        .thumbWidth(200).thumbHeight(200)
-                        .inputMessageContent(InputTextMessageContent.builder()
-                                .messageText("Google Search for " + query.getQuery() + " failed, contact @MazenK")
-                                .parseMode(ParseMode.NONE)
-                                .build())
-                        .build())
-                .is_personal(true)
-                .build());
+        bot.perform(AnswerInlineQuery.builder()
+                .queryId(query.getId())
+                .results(Collections.singletonList(
+                        InlineResultArticle.builder()
+                                .id("1")
+                                .title("Search failed!")
+                                .description("Please contact @MazenK for help")
+                                .thumbUrl("https://i.imgur.com/4QLcKXj.jpg")
+                                .thumbWidth(200).thumbHeight(200)
+                                .inputMessageContent(InputTextMessageContent.builder()
+                                        .messageText("Google Search for " + query.getQuery() + " failed, contact @MazenK")
+                                        .parseMode(ParseMode.NONE)
+                                        .build())
+                                .build()
+                ))
+                .isPersonal(true)
+                .build()
+        );
     }
 
-    @Override
-    public void onInlineQueryReceived(InlineQueryReceivedEvent event) {
+    public void onInlineQuery(InlineQueryEvent event) {
         service.execute(() -> {
             InlineQuery query = event.getQuery();
             List<GoogleResult> results;
@@ -137,25 +145,16 @@ public class GoogramMain implements Listener {
                 return;
             }
 
-            InlineQueryResponse.InlineQueryResponseBuilder responseBuilder =
-                    InlineQueryResponse.builder().is_personal(true);
-            List<InlineQueryResult> queryResults = new ArrayList<>();
+            AnswerInlineQuery.AnswerInlineQueryBuilder responseBuilder =
+                    AnswerInlineQuery.builder().queryId(query.getId()).isPersonal(true);
+            List<InlineResult> queryResults = new ArrayList<>();
             int id = 0;
 
             for (GoogleResult result : results) {
-                InlineQueryResult queryResult;
-
-                try {
-                    queryResult = result.toArticle(++id);
-                } catch (MalformedURLException ignored) {
-                    continue;
-                }
-
-                queryResults.add(queryResult);
+                queryResults.add(result.toArticle(++id));
             }
 
-            query.answer(bot, responseBuilder
-                    .results(queryResults).build());
+            bot.perform(responseBuilder.results(queryResults).build());
         });
     }
 }
