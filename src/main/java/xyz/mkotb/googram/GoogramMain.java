@@ -71,6 +71,8 @@ public class GoogramMain {
 
                     this.bot = bot;
                     bot.getEventRegistry().registerEvent(InlineQueryEvent.class, this::onInlineQuery);
+
+                    System.out.println("Logged in as @" + bot.getBotInfo().getUsername());
                 });
     }
 
