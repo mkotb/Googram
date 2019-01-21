@@ -28,16 +28,15 @@ import com.jtelegram.api.requests.message.framework.ParseMode;
 import com.jtelegram.api.update.PollingUpdateProvider;
 import com.mashape.unirest.http.Unirest;
 import com.mashape.unirest.http.exceptions.UnirestException;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.apache.http.HttpHost;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -52,10 +51,10 @@ public class GoogramMain {
     private final Gson gson = new Gson();
     private List<String> keys;
     private TelegramBot bot;
-    private TransportClient elasticClient;
+    private RestHighLevelClient elasticClient;
     private AtomicInteger keyIndex = new AtomicInteger(-1);
 
-    public GoogramMain(String apiKey) throws Exception {
+    public GoogramMain(String apiKey) {
         try {
             keys = Files.readAllLines(Paths.get("gm_keys"));
         } catch (IOException ex) {
@@ -64,8 +63,11 @@ public class GoogramMain {
             System.exit(0);
         }
 
-        elasticClient = new PreBuiltTransportClient(Settings.EMPTY)
-                .addTransportAddress(new TransportAddress(InetAddress.getByName("elasticsearch"), 9300));
+        elasticClient = new RestHighLevelClient(
+                RestClient.builder(
+                        new HttpHost("elasticsearch", 9200, "http")
+                )
+        );
 
         TelegramBotRegistry.builder()
                 .updateProvider(new PollingUpdateProvider())
@@ -86,7 +88,7 @@ public class GoogramMain {
                 });
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) {
         new GoogramMain(System.getenv("TELEGRAM_KEY"));
     }
 
@@ -178,11 +180,20 @@ public class GoogramMain {
     }
 
     private void logQuery(QueryLog log) {
-        service.execute(() ->
-            elasticClient.prepareIndex("googram-queries", "_doc")
-                    .setSource(gson.toJson(log), XContentType.JSON)
-                    .get()
-        );
+        service.execute(() -> {
+            try {
+                IndexRequest request = new IndexRequest("googram-queries", "doc");
+                request.source(
+                        "userId", log.userId,
+                        "query", log.query,
+                        "queryDate", log.queryDate,
+                        "errorMessage", log.errorMessage
+                );
+                elasticClient.index(request, RequestOptions.DEFAULT);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        });
     }
 
     public void onInlineQuery(InlineQueryEvent event) {
