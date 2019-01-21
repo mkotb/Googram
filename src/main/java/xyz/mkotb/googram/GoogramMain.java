@@ -80,7 +80,7 @@ public class GoogramMain {
         new GoogramMain(System.getenv("TELEGRAM_KEY"));
     }
 
-    public List<GoogleResult> search(String query) throws UnirestException {
+    public List<GoogleResult> search(String query, int timeout) throws UnirestException, DailyLimitExceededException {
         List<GoogleResult> results = new ArrayList<>();
         JSONObject response = Unirest.get("https://www.googleapis.com/customsearch/v1")
                 .queryString("q", query)
@@ -91,6 +91,15 @@ public class GoogramMain {
 
         if (response.has("items")) {
             array = response.getJSONArray("items");
+        }
+
+        if (response.has("error") && response.getJSONObject("error").getInt("code") == 403) {
+            if (timeout < keys.size() - 1) {
+                // we hit our daily limit, let's try another key
+                return search(query, timeout + 1);
+            } else {
+                throw new DailyLimitExceededException();
+            }
         }
 
         array.forEach((e) -> {
@@ -134,13 +143,37 @@ public class GoogramMain {
         );
     }
 
+    private void sendExceededNotification(InlineQuery query) {
+        bot.perform(AnswerInlineQuery.builder()
+                .queryId(query.getId())
+                .results(Collections.singletonList(
+                        InlineResultArticle.builder()
+                                .id("1")
+                                .title("Daily limit exceeded")
+                                .description("The bot has exceeded its maximum queries for today. Try again later!")
+                                .thumbUrl("https://i.imgur.com/4QLcKXj.jpg")
+                                .thumbWidth(200).thumbHeight(200)
+                                .inputMessageContent(InputTextMessageContent.builder()
+                                        .messageText("The bot has exceeded its maximum queries for today. Try again later!")
+                                        .parseMode(ParseMode.NONE)
+                                        .build())
+                                .build()
+                ))
+                .isPersonal(true)
+                .build()
+        );
+    }
+
     public void onInlineQuery(InlineQueryEvent event) {
         service.execute(() -> {
             InlineQuery query = event.getQuery();
             List<GoogleResult> results;
 
             try {
-                results = search(query.getQuery());
+                results = search(query.getQuery(), 0);
+            } catch (DailyLimitExceededException ex) {
+                sendExceededNotification(query);
+                return;
             } catch (Exception ex) {
                 ex.printStackTrace();
                 sendError(query);
