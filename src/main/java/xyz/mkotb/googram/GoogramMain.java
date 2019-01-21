@@ -132,7 +132,8 @@ public class GoogramMain {
         return next;
     }
 
-    private void sendError(InlineQuery query) {
+    private void sendError(InlineQuery query, Exception ex) {
+        logQuery(new QueryLog(query, ex.getClass().getName() + " " + ex.getMessage()));
         bot.perform(AnswerInlineQuery.builder()
                 .queryId(query.getId())
                 .results(Collections.singletonList(
@@ -154,6 +155,8 @@ public class GoogramMain {
     }
 
     private void sendExceededNotification(InlineQuery query) {
+        logQuery(new QueryLog(query, "Daily limit exceeded"));
+
         bot.perform(AnswerInlineQuery.builder()
                 .queryId(query.getId())
                 .results(Collections.singletonList(
@@ -175,11 +178,11 @@ public class GoogramMain {
     }
 
     private void logQuery(QueryLog log) {
-        service.execute(() -> {
+        service.execute(() ->
             elasticClient.prepareIndex("googram-queries", "_doc")
                     .setSource(gson.toJson(log), XContentType.JSON)
-                    .get();
-        });
+                    .get()
+        );
     }
 
     public void onInlineQuery(InlineQueryEvent event) {
@@ -194,12 +197,12 @@ public class GoogramMain {
                 return;
             } catch (Exception ex) {
                 ex.printStackTrace();
-                sendError(query);
+                sendError(query, ex);
                 return;
             }
 
             // log query metadata in elasticsearch
-            logQuery(new QueryLog(query));
+            logQuery(new QueryLog(query, null));
 
             AnswerInlineQuery.AnswerInlineQueryBuilder responseBuilder =
                     AnswerInlineQuery.builder().queryId(query.getId()).isPersonal(true);
